@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Computex 2026 — 上市廠商股票追蹤</title>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.46.0/dist/apexcharts.min.js"></script>
 <style>
   :root {
     --tw:#e53e3e; --us:#3182ce; --jp:#dd6b20; --kr:#38a169;
@@ -60,6 +61,8 @@
   td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
   tr:last-child td{border-bottom:none}
   tr:hover td{background:#f7fafc}
+  tr.tw-row{cursor:pointer}
+  tr.tw-row:hover td{background:#ebf8ff}
   .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff}
   .badge-TW{background:var(--tw)} .badge-US{background:var(--us)}
   .badge-JP{background:var(--jp)} .badge-KR{background:var(--kr)}
@@ -85,13 +88,57 @@
   .auto-btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);
     background:#fff;color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
   .auto-btn.on{background:#f0fff4;border-color:#68d391;color:#276749;font-weight:600}
+
+  /* ── Drawer ── */
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:none}
+  #overlay.show{display:block}
+  #drawer{position:fixed;top:0;right:0;width:500px;max-width:100vw;height:100vh;
+    background:#fff;z-index:201;transform:translateX(100%);transition:transform .25s ease;
+    display:flex;flex-direction:column;box-shadow:-4px 0 28px rgba(0,0,0,.18)}
+  #drawer.open{transform:translateX(0)}
+  .d-hd{display:flex;justify-content:space-between;align-items:flex-start;
+    padding:16px 20px;border-bottom:1px solid var(--border);background:#f7fafc;flex-shrink:0}
+  .d-name{font-size:18px;font-weight:700;color:var(--text)}
+  .d-price{font-size:13px;color:var(--muted);margin-top:5px;font-family:'SF Mono',Consolas,monospace}
+  .d-close{background:none;border:none;cursor:pointer;font-size:20px;color:var(--muted);
+    padding:2px 8px;border-radius:6px;line-height:1}
+  .d-close:hover{background:var(--border);color:var(--text)}
+  .d-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+  .d-tab{flex:1;padding:11px 6px;border:none;background:none;cursor:pointer;font-size:13px;
+    font-weight:500;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s}
+  .d-tab:hover{color:var(--text)}
+  .d-tab.active{color:#3182ce;border-bottom-color:#3182ce;font-weight:600}
+  .d-body{flex:1;overflow-y:auto;padding:16px 20px}
+  .d-body.hidden{display:none}
+  .d-loading{color:var(--muted);font-size:13px;padding:30px 0;text-align:center}
+  .d-empty{color:var(--muted);font-size:13px;padding:40px 0;text-align:center;line-height:1.8}
+  .d-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  .d-table th{background:#f7fafc;padding:8px 10px;font-weight:600;color:var(--muted);
+    font-size:11px;border-bottom:2px solid var(--border);text-align:right}
+  .d-table th:first-child{text-align:left}
+  .d-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;
+    font-family:'SF Mono',Consolas,monospace;font-size:12px}
+  .d-table td:first-child{text-align:left;font-family:inherit;font-size:13px}
+  .d-table tr:last-child td{border-bottom:none}
+  .pos{color:#38a169;font-weight:600} .neg{color:#e53e3e;font-weight:600}
+  .d-analyst{margin-top:4px}
+  .d-arow{display:flex;justify-content:space-between;align-items:center;
+    padding:11px 0;border-bottom:1px solid var(--border)}
+  .d-arow:last-child{border-bottom:none}
+  .d-alabel{color:var(--muted);font-size:12px}
+  .d-aval{font-weight:600;font-size:14px;font-family:'SF Mono',Consolas,monospace}
+  .rec-badge{display:inline-block;padding:4px 14px;border-radius:14px;font-size:13px;font-weight:700;color:#fff}
+  .rec-strong_buy{background:#276749} .rec-buy{background:#38a169}
+  .rec-hold{background:#b7791f} .rec-none{background:#718096}
+  .rec-sell{background:#c53030} .rec-strong_sell{background:#742a2a}
+  #kline-chart{min-height:290px}
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>&#x1F5A5; Computex 2026 — 上市廠商股票追蹤</h1>
-  <p>台灣・美國・日本・韓國 四大市場上市參展商即時股價</p>
+  <p>台灣・美國・日本・韓國 四大市場上市參展商即時股價 &#x2022; 點擊台灣股票列可查看詳細資訊</p>
 </div>
 
 <div class="stats">
@@ -142,6 +189,28 @@
     <div class="ic">&#x1F50D;</div>
     <div>找不到符合條件的廠商</div>
   </div>
+</div>
+
+<!-- Detail Drawer -->
+<div id="overlay" onclick="closeDrawer()"></div>
+<div id="drawer">
+  <div class="d-hd">
+    <div>
+      <div class="d-name" id="d-name"></div>
+      <div class="d-price" id="d-price"></div>
+    </div>
+    <button class="d-close" onclick="closeDrawer()">&#x2715;</button>
+  </div>
+  <div class="d-tabs">
+    <button class="d-tab active" data-tab="kline" onclick="switchTab(this)">K&#x7DDA;&#x5716;</button>
+    <button class="d-tab" data-tab="inst" onclick="switchTab(this)">&#x4E09;&#x5927;&#x6CD5;&#x4EBA;</button>
+    <button class="d-tab" data-tab="div" onclick="switchTab(this)">&#x8FD1;&#x4E94;&#x5E74;&#x80A1;&#x606F;</button>
+    <button class="d-tab" data-tab="analyst" onclick="switchTab(this)">&#x5206;&#x6790;&#x5E2B;&#x8A55;&#x7B49;</button>
+  </div>
+  <div class="d-body" id="tc-kline"><div id="kline-chart"></div></div>
+  <div class="d-body hidden" id="tc-inst"></div>
+  <div class="d-body hidden" id="tc-div"></div>
+  <div class="d-body hidden" id="tc-analyst"></div>
 </div>
 
 <script>
@@ -220,11 +289,514 @@ const COMPANIES = [
   {name:'Point Mobile',en:'Point Mobile Co., Ltd.',ticker:'318020.KS',market:'KR',twx:'',industry:'行動條碼掃描器',products:'工業級行動電腦,RFID無線辨識系統,5G/5G-A/6G相關產品 ,其他行動裝置配件',hall:'南港二館 智慧商業服務解決方案區',booth:'P0604a'}
 ];
 
+const ANALYST_DATA = {
+  "2357.TW": {
+    "targetMean": 605.1,
+    "targetHigh": 710.0,
+    "targetLow": 450.0,
+    "numAnalysts": 10,
+    "recKey": "hold",
+    "recMean": 2.63636
+  },
+  "2353.TW": {
+    "targetMean": 28.0,
+    "targetHigh": 35.0,
+    "targetLow": 21.0,
+    "numAnalysts": 4,
+    "recKey": "hold",
+    "recMean": 3.25
+  },
+  "2377.TW": {
+    "targetMean": 111.66667,
+    "targetHigh": 183.0,
+    "targetLow": 93.0,
+    "numAnalysts": 6,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2376.TW": {
+    "targetMean": 305.77777,
+    "targetHigh": 368.0,
+    "targetLow": 235.0,
+    "numAnalysts": 9,
+    "recKey": "buy",
+    "recMean": 2.11111
+  },
+  "2454.TW": {
+    "targetMean": 2096.2,
+    "targetHigh": 2500.0,
+    "targetLow": 1600.0,
+    "numAnalysts": 24,
+    "recKey": "strong_buy",
+    "recMean": 1.43478
+  },
+  "2379.TW": {
+    "targetMean": 572.625,
+    "targetHigh": 650.0,
+    "targetLow": 490.0,
+    "numAnalysts": 16,
+    "recKey": "buy",
+    "recMean": 2.17647
+  },
+  "2308.TW": {
+    "targetMean": 1707.421,
+    "targetHigh": 2160.0,
+    "targetLow": 600.0,
+    "numAnalysts": 19,
+    "recKey": "buy",
+    "recMean": 1.52632
+  },
+  "2317.TW": {
+    "targetMean": 294.44443,
+    "targetHigh": 400.0,
+    "targetLow": 210.0,
+    "numAnalysts": 18,
+    "recKey": "buy",
+    "recMean": 1.6
+  },
+  "2395.TW": {
+    "targetMean": 373.2,
+    "targetHigh": 450.0,
+    "targetLow": 300.0,
+    "numAnalysts": 15,
+    "recKey": "none",
+    "recMean": null
+  },
+  "4938.TW": {
+    "targetMean": 76.64444,
+    "targetHigh": 99.6,
+    "targetLow": 54.0,
+    "numAnalysts": 9,
+    "recKey": "hold",
+    "recMean": 3.44444
+  },
+  "2324.TW": {
+    "targetMean": 29.425,
+    "targetHigh": 35.0,
+    "targetLow": 23.0,
+    "numAnalysts": 8,
+    "recKey": "hold",
+    "recMean": 3.5
+  },
+  "2356.TW": {
+    "targetMean": 46.75,
+    "targetHigh": 60.0,
+    "targetLow": 36.0,
+    "numAnalysts": 8,
+    "recKey": "hold",
+    "recMean": 2.75
+  },
+  "2301.TW": {
+    "targetMean": 206.11111,
+    "targetHigh": 245.0,
+    "targetLow": 117.0,
+    "numAnalysts": 9,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2451.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6277.TW": {
+    "targetMean": 73.5,
+    "targetHigh": 75.0,
+    "targetLow": 72.0,
+    "numAnalysts": 2,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2458.TW": {
+    "targetMean": 143.33333,
+    "targetHigh": 160.0,
+    "targetLow": 135.0,
+    "numAnalysts": 3,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2399.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2049.TW": {
+    "targetMean": 272.33334,
+    "targetHigh": 340.0,
+    "targetLow": 127.0,
+    "numAnalysts": 15,
+    "recKey": "buy",
+    "recMean": 1.93333
+  },
+  "6719.TW": {
+    "targetMean": 213.2,
+    "targetHigh": 250.0,
+    "targetLow": 170.0,
+    "numAnalysts": 5,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6669.TW": {
+    "targetMean": 6007.5,
+    "targetHigh": 7145.0,
+    "targetLow": 5000.0,
+    "numAnalysts": 16,
+    "recKey": "strong_buy",
+    "recMean": 1.29412
+  },
+  "3702.TW": {
+    "targetMean": 110.5,
+    "targetHigh": 121.0,
+    "targetLow": 100.0,
+    "numAnalysts": 2,
+    "recKey": "buy",
+    "recMean": 2.0
+  },
+  "3665.TW": {
+    "targetMean": 2232.4167,
+    "targetHigh": 3065.0,
+    "targetLow": 650.0,
+    "numAnalysts": 12,
+    "recKey": "buy",
+    "recMean": 1.58333
+  },
+  "3015.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6770.TW": {
+    "targetMean": 58.54,
+    "targetHigh": 96.0,
+    "targetLow": 32.7,
+    "numAnalysts": 5,
+    "recKey": "buy",
+    "recMean": 2.2
+  },
+  "1301.TW": {
+    "targetMean": 51.0,
+    "targetHigh": 65.0,
+    "targetLow": 32.0,
+    "numAnalysts": 5,
+    "recKey": "none",
+    "recMean": null
+  },
+  "1326.TW": {
+    "targetMean": 49.83333,
+    "targetHigh": 65.0,
+    "targetLow": 20.0,
+    "numAnalysts": 6,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3033.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6206.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2352.TW": {
+    "targetMean": 32.0,
+    "targetHigh": 32.0,
+    "targetLow": 32.0,
+    "numAnalysts": 1,
+    "recKey": "buy",
+    "recMean": 2.5
+  },
+  "6414.TW": {
+    "targetMean": 355.0,
+    "targetHigh": 435.0,
+    "targetLow": 310.0,
+    "numAnalysts": 4,
+    "recKey": "strong_buy",
+    "recMean": 1.4
+  },
+  "2495.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3653.TW": {
+    "targetMean": 4317.222,
+    "targetHigh": 5700.0,
+    "targetLow": 1680.0,
+    "numAnalysts": 9,
+    "recKey": "strong_buy",
+    "recMean": 1.33333
+  },
+  "2417.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "2465.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3706.TW": {
+    "targetMean": 121.5,
+    "targetHigh": 137.0,
+    "targetLow": 106.0,
+    "numAnalysts": 2,
+    "recKey": "strong_buy",
+    "recMean": 1.5
+  },
+  "8299.TWO": {
+    "targetMean": 2356.0,
+    "targetHigh": 3000.0,
+    "targetLow": 1800.0,
+    "numAnalysts": 9,
+    "recKey": "buy",
+    "recMean": 1.55556
+  },
+  "8069.TWO": {
+    "targetMean": 224.90909,
+    "targetHigh": 295.0,
+    "targetLow": 153.0,
+    "numAnalysts": 11,
+    "recKey": "none",
+    "recMean": null
+  },
+  "5274.TWO": {
+    "targetMean": 12548.3125,
+    "targetHigh": 17330.0,
+    "targetLow": 6100.0,
+    "numAnalysts": 16,
+    "recKey": "strong_buy",
+    "recMean": 1.375
+  },
+  "6462.TWO": {
+    "targetMean": 105.0,
+    "targetHigh": 105.0,
+    "targetLow": 105.0,
+    "numAnalysts": 1,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3324.TWO": {
+    "targetMean": 1338.6923,
+    "targetHigh": 1740.0,
+    "targetLow": 1015.0,
+    "numAnalysts": 13,
+    "recKey": "buy",
+    "recMean": 1.78571
+  },
+  "6180.TWO": {
+    "targetMean": 56.0,
+    "targetHigh": 56.0,
+    "targetLow": 56.0,
+    "numAnalysts": 1,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6922.TWO": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3594.TWO": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "8271.TW": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6166.TW": {
+    "targetMean": 80.0,
+    "targetHigh": 80.0,
+    "targetLow": 80.0,
+    "numAnalysts": 1,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3260.TWO": {
+    "targetMean": 316.0,
+    "targetHigh": 316.0,
+    "targetLow": 316.0,
+    "numAnalysts": 1,
+    "recKey": "none",
+    "recMean": null
+  },
+  "3540.TWO": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "8234.TWO": {
+    "targetMean": null,
+    "targetHigh": null,
+    "targetLow": null,
+    "numAnalysts": null,
+    "recKey": "none",
+    "recMean": null
+  },
+  "6239.TW": {
+    "targetMean": 280.25,
+    "targetHigh": 340.0,
+    "targetLow": 125.0,
+    "numAnalysts": 8,
+    "recKey": "buy",
+    "recMean": 1.75
+  },
+  "NVDA": {
+    "strongBuy": 24,
+    "buy": 42,
+    "hold": 4,
+    "sell": 1,
+    "strongSell": 0,
+    "total": 71,
+    "period": "2026-04-01"
+  },
+  "SMCI": {
+    "strongBuy": 4,
+    "buy": 7,
+    "hold": 10,
+    "sell": 5,
+    "strongSell": 0,
+    "total": 26,
+    "period": "2026-04-01"
+  },
+  "DELL": {
+    "strongBuy": 8,
+    "buy": 17,
+    "hold": 6,
+    "sell": 1,
+    "strongSell": 0,
+    "total": 32,
+    "period": "2026-04-01"
+  },
+  "CSCO": {
+    "strongBuy": 7,
+    "buy": 16,
+    "hold": 9,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 32,
+    "period": "2026-04-01"
+  },
+  "SYNA": {
+    "strongBuy": 2,
+    "buy": 13,
+    "hold": 5,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 20,
+    "period": "2026-04-01"
+  },
+  "MXL": {
+    "strongBuy": 2,
+    "buy": 5,
+    "hold": 8,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 15,
+    "period": "2026-04-01"
+  },
+  "MPWR": {
+    "strongBuy": 8,
+    "buy": 14,
+    "hold": 3,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 25,
+    "period": "2026-04-01"
+  },
+  "GEN": {
+    "strongBuy": 3,
+    "buy": 7,
+    "hold": 7,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 17,
+    "period": "2026-04-01"
+  },
+  "CLS": {
+    "strongBuy": 4,
+    "buy": 11,
+    "hold": 2,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 17,
+    "period": "2026-04-01"
+  },
+  "FLEX": {
+    "strongBuy": 7,
+    "buy": 11,
+    "hold": 1,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 19,
+    "period": "2026-04-01"
+  },
+  "SIMO": {
+    "strongBuy": 5,
+    "buy": 10,
+    "hold": 2,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 17,
+    "period": "2026-04-01"
+  },
+  "HIMX": {
+    "strongBuy": 4,
+    "buy": 4,
+    "hold": 3,
+    "sell": 0,
+    "strongSell": 0,
+    "total": 11,
+    "period": "2026-04-01"
+  }
+};
+
+
 const MNAMES = {TW:'\u53F0\u7063', US:'\u7F8E\u570B', JP:'\u65E5\u672C', KR:'\u97D3\u570B'};
 const CUR   = {TW:'TWD', US:'USD', JP:'JPY', KR:'KRW'};
 let curFilter = 'ALL', priceData = {}, sortCol = 'change', sortDir = -1, autoTimer = null;
 
-// Init stats
 document.getElementById('sAll').textContent = COMPANIES.length;
 ['TW','US','JP','KR'].forEach(m => {
   document.getElementById('s'+m).textContent = COMPANIES.filter(c=>c.market===m).length;
@@ -247,7 +819,7 @@ async function proxyFetch(url, timeoutMs = 9000) {
   return null;
 }
 
-// Taiwan: TWSE official API (real-time)
+// Taiwan: TWSE official API
 async function fetchTW(tickers) {
   const parts = tickers.map(c => {
     const code = c.ticker.replace(/\.(TW|TWO)$/i, '');
@@ -258,8 +830,7 @@ async function fetchTW(tickers) {
     const r = await proxyFetch(url, 12000);
     if (!r) return;
     const j = await r.json();
-    const items = j?.msgArray || [];
-    items.forEach(item => {
+    (j?.msgArray || []).forEach(item => {
       const priceStr = (item.z && item.z !== '-') ? item.z : item.y;
       const price = parseFloat(priceStr);
       const prev  = parseFloat(item.y);
@@ -272,13 +843,11 @@ async function fetchTW(tickers) {
   } catch(e) {}
 }
 
-// US/JP: Stooq CSV
 async function fetchStooq(ticker, market) {
   let sym;
   if (market === 'US') sym = ticker.toLowerCase() + '.us';
   else if (market === 'JP') sym = ticker.replace('.T','') + '.jp';
   else return null;
-
   const url = 'https://stooq.com/q/l/?s=' + sym + '&f=sd2ohlcv&h&e=csv';
   try {
     const r = await proxyFetch(url);
@@ -295,7 +864,6 @@ async function fetchStooq(ticker, market) {
   } catch(e) { return null; }
 }
 
-// KR: Yahoo Finance v8 via proxy
 async function fetchYF(ticker) {
   const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1d';
   try {
@@ -311,7 +879,6 @@ async function fetchYF(ticker) {
   } catch(e) { return null; }
 }
 
-// ---------- Main fetch ----------
 async function fetchAll() {
   const btn = document.getElementById('refBtn');
   const ico = document.getElementById('refIco');
@@ -319,17 +886,15 @@ async function fetchAll() {
   btn.disabled = true;
   ico.innerHTML = '<span class="spin"></span>';
   bar.className = 'bar info';
-  bar.textContent = '正在更新股價，請稍候…';
+  bar.textContent = '\u6b63\u5728\u66f4\u65b0\u80a1\u50f9\uff0c\u8acb\u7a0d\u5019\u2026';
 
-  // Set loading state
   COMPANIES.forEach(c => {
     const el = document.getElementById('p_' + cellId(c.ticker));
-    if (el) el.innerHTML = '<span class="ld">載入中…</span>';
+    if (el) el.innerHTML = '<span class="ld">\u8f09\u5165\u4e2d\u2026</span>';
   });
 
   let ok = 0, fail = 0;
 
-  // 1. Taiwan batch (single request)
   const twCos = COMPANIES.filter(c => c.market === 'TW');
   await fetchTW(twCos);
   twCos.forEach(c => {
@@ -337,7 +902,6 @@ async function fetchAll() {
     updateCell(c.ticker);
   });
 
-  // 2. US via Stooq (batches of 4)
   const usCos = COMPANIES.filter(c => c.market === 'US');
   for (let i = 0; i < usCos.length; i += 4) {
     await Promise.all(usCos.slice(i, i+4).map(async c => {
@@ -348,7 +912,6 @@ async function fetchAll() {
     if (i + 4 < usCos.length) await delay(300);
   }
 
-  // 3. Japan via Stooq
   const jpCos = COMPANIES.filter(c => c.market === 'JP');
   await Promise.all(jpCos.map(async c => {
     const d = await fetchStooq(c.ticker, 'JP');
@@ -356,7 +919,6 @@ async function fetchAll() {
     updateCell(c.ticker);
   }));
 
-  // 4. Korea via Yahoo Finance
   const krCos = COMPANIES.filter(c => c.market === 'KR');
   for (const c of krCos) {
     const d = await fetchYF(c.ticker);
@@ -370,27 +932,31 @@ async function fetchAll() {
   const now = new Date().toLocaleTimeString('zh-TW');
   bar.className = fail === 0 ? 'bar ok' : 'bar warn';
   bar.textContent = fail === 0
-    ? '\u2705 全部更新完成（' + ok + ' 支）\uFF5C最後更新：' + now
-    : '\u26A0\uFE0F 成功 ' + ok + ' 支，' + fail + ' 支無法取得（休市或 API 限制）\uFF5C更新：' + now;
+    ? '\u2705 \u5168\u90e8\u66f4\u65b0\u5b8c\u6210\uff08' + ok + ' \u652f\uff09\uff5c\u6700\u5f8c\u66f4\u65b0\uff1a' + now
+    : '\u26A0\uFE0F \u6210\u529f ' + ok + ' \u652f\uff0c' + fail + ' \u652f\u7121\u6cd5\u53d6\u5f97\uff5c\u66f4\u65b0\uff1a' + now;
+
+  // Refresh drawer price if open
+  if (drawerCo) {
+    const d = priceData[drawerCo.ticker];
+    if (d) document.getElementById('d-price').textContent = drawerPriceTxt(d);
+  }
   render();
 }
 
 function toggleAuto() {
   const btn = document.getElementById('autoBtn');
   if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
+    clearInterval(autoTimer); autoTimer = null;
     btn.classList.remove('on');
-    btn.textContent = '\u23F1 自動更新';
+    btn.textContent = '\u23F1 \u81ea\u52d5\u66f4\u65b0';
   } else {
     autoTimer = setInterval(fetchAll, 60000);
     btn.classList.add('on');
-    btn.textContent = '\u23F1 自動更新 (60s)';
+    btn.textContent = '\u23F1 \u81ea\u52d5\u66f4\u65b0 (60s)';
   }
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
-
 function cellId(ticker) { return ticker.replace(/[^a-zA-Z0-9]/g, '_'); }
 
 function fmtPrice(price, cur) {
@@ -400,22 +966,7 @@ function fmtPrice(price, cur) {
   return price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
-function priceHtml(ticker) {
-  const d = priceData[ticker];
-  if (!d) return '<span class="ep">—</span>';
-  const sign = d.change >= 0 ? '+' : '';
-  const cls  = d.change >= 0 ? 'up' : 'dn';
-  const arr  = d.change >= 0 ? '\u25B2' : '\u25BC';
-  return '<span class="pv">' + fmtPrice(d.price, d.currency) + '</span>' +
-    '<span class="pc">' + d.currency + '</span>' +
-    (d.change != null
-      ? '<div class="ch ' + cls + '">' + arr + ' ' + sign + d.change.toFixed(2) + '%</div>'
-      : '');
-}
-
 function updateCell(ticker) {
-  // After individual update, re-render to keep sort order and both columns in sync
-  // (lightweight: just update the specific change cell by id)
   const d = priceData[ticker];
   const el = document.getElementById('p_' + cellId(ticker));
   if (!el || !d) return;
@@ -457,13 +1008,12 @@ function render() {
     });
   }
 
-  // Update header indicators
   document.querySelectorAll('th.sortable').forEach(th => {
     th.classList.remove('sort-asc', 'sort-desc');
     if (th.dataset.col === sortCol) th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
   });
 
-  document.getElementById('cnt').textContent = '顯示 ' + rows.length + ' / ' + COMPANIES.length + ' 家廠商';
+  document.getElementById('cnt').textContent = '\u986f\u793a ' + rows.length + ' / ' + COMPANIES.length + ' \u5bb6\u5ee0\u5546';
 
   const noRes = document.getElementById('noRes');
   const tbody = document.getElementById('tbody');
@@ -475,9 +1025,8 @@ function render() {
     const d = priceData[c.ticker];
     const prod = c.products
       ? '<div class="prod">' + c.products.replace(/,/g, '\u30FB') + '</div>'
-      : '<span style="color:#cbd5e0">—</span>';
+      : '<span style="color:#cbd5e0">\u2014</span>';
     const loc = c.hall ? c.hall + (c.booth ? ' \xB7 ' + c.booth : '') : '';
-    // Change cell
     let chHtml = '<span class="ep">\u2014</span>';
     if (d && d.change != null) {
       const sign = d.change >= 0 ? '+' : '';
@@ -485,14 +1034,18 @@ function render() {
       const arr  = d.change >= 0 ? '\u25B2' : '\u25BC';
       chHtml = '<span class="ch ' + cls + '" style="font-size:13px">' + arr + ' ' + sign + d.change.toFixed(2) + '%</span>';
     } else if (d) {
-      chHtml = '<span style="color:var(--muted);font-size:12px">—</span>';
-    } else if (!d) {
+      chHtml = '<span style="color:var(--muted);font-size:12px">\u2014</span>';
+    } else {
       chHtml = '<span class="ld">\u8f09\u5165\u4e2d\u2026</span>';
     }
-    // Price cell (no change % row, just value + currency)
     let prHtml = '<span class="ep">\u2014</span>';
     if (d) prHtml = '<span class="pv">' + fmtPrice(d.price, d.currency) + '</span><span class="pc"> ' + d.currency + '</span>';
-    return '<tr>' +
+
+    const isTW = c.market === 'TW';
+    const rowCls = isTW ? ' class="tw-row"' : '';
+    const rowClick = isTW ? ' onclick="openDrawer(\'' + c.ticker + '\')"' : '';
+
+    return '<tr' + rowCls + rowClick + '>' +
       '<td><div class="co-name">' + c.name + '</div>' +
            '<div class="co-en">' + c.en + '</div>' +
            (loc ? '<div class="co-loc">' + loc + '</div>' : '') + '</td>' +
@@ -524,6 +1077,285 @@ document.getElementById('filters').addEventListener('click', e => {
   render();
 });
 document.getElementById('q').addEventListener('input', render);
+
+// ════════════════════════════════════════
+// Drawer logic
+// ════════════════════════════════════════
+let drawerCo = null, klineChart = null, tabLoaded = {};
+
+function drawerPriceTxt(d) {
+  if (!d) return '';
+  const sign = d.change >= 0 ? '+' : '';
+  const arr  = d.change >= 0 ? '\u25B2' : '\u25BC';
+  return fmtPrice(d.price, d.currency) + ' ' + d.currency +
+    (d.change != null ? '  ' + arr + ' ' + sign + d.change.toFixed(2) + '%' : '');
+}
+
+function openDrawer(ticker) {
+  const c = COMPANIES.find(x => x.ticker === ticker);
+  if (!c) return;
+  drawerCo = c;
+  tabLoaded = {};
+
+  const code = ticker.replace(/\.(TW|TWO)$/i, '');
+  document.getElementById('d-name').textContent = c.name + '\u3000(' + code + ')';
+  const d = priceData[ticker];
+  document.getElementById('d-price').textContent = d ? drawerPriceTxt(d) : ticker;
+
+  // Reset to first tab
+  document.querySelectorAll('.d-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.d-tab[data-tab="kline"]').classList.add('active');
+  document.querySelectorAll('.d-body').forEach(t => t.classList.add('hidden'));
+  document.getElementById('tc-kline').classList.remove('hidden');
+
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('drawer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  loadKLine(c);
+}
+
+function closeDrawer() {
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('drawer').classList.remove('open');
+  document.body.style.overflow = '';
+  drawerCo = null;
+  if (klineChart) { klineChart.destroy(); klineChart = null; }
+}
+
+function switchTab(btn) {
+  if (!drawerCo) return;
+  document.querySelectorAll('.d-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const tab = btn.dataset.tab;
+  document.querySelectorAll('.d-body').forEach(t => t.classList.add('hidden'));
+  document.getElementById('tc-' + tab).classList.remove('hidden');
+  if (tabLoaded[tab]) return;
+  tabLoaded[tab] = true;
+  const code = drawerCo.ticker.replace(/\.(TW|TWO)$/i, '');
+  if (tab === 'kline') loadKLine(drawerCo);
+  else if (tab === 'inst') loadInstitutional(code, drawerCo);
+  else if (tab === 'div') loadDividend(code, drawerCo);
+  else if (tab === 'analyst') showAnalyst(drawerCo.ticker);
+}
+
+// ── K-line ────────────────────────────────────────────────────
+async function loadKLine(c) {
+  const code = c.ticker.replace(/\.(TW|TWO)$/i, '');
+  const container = document.getElementById('kline-chart');
+  container.innerHTML = '<div class="d-loading">\u8f09\u5165K\u7dda\u5716\u4e2d\u2026</div>';
+  if (klineChart) { klineChart.destroy(); klineChart = null; }
+  tabLoaded['kline'] = true;
+
+  const now = new Date();
+  const months = [];
+  for (let i = 4; i >= 0; i--) {
+    months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
+  }
+
+  const allData = (await Promise.all(months.map(async mDate => {
+    const y = mDate.getFullYear();
+    const m = String(mDate.getMonth() + 1).padStart(2, '0');
+    const rows = [];
+    try {
+      if (c.twx === 'otc') {
+        const url = 'https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php?l=zh-tw&d=' + y + '/' + m + '&s=' + code;
+        const r = await proxyFetch(url, 12000);
+        if (!r) return rows;
+        const j = await r.json();
+        for (const row of (j?.aaData || [])) {
+          const parts = (row[0] || '').split('/');
+          if (parts.length < 3) continue;
+          const date = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1])-1, parseInt(parts[2]));
+          const o = parseFloat((row[3]||'').replace(/,/g,'')), h = parseFloat((row[4]||'').replace(/,/g,''));
+          const l = parseFloat((row[5]||'').replace(/,/g,'')), cl = parseFloat((row[6]||'').replace(/,/g,''));
+          if ([o,h,l,cl].every(v=>!isNaN(v))) rows.push({x:date.getTime(), y:[o,h,l,cl]});
+        }
+      } else {
+        const url = 'https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=' + y + m + '01&stockNo=' + code;
+        const r = await proxyFetch(url, 12000);
+        if (!r) return rows;
+        const j = await r.json();
+        if (j.stat !== 'OK') return rows;
+        for (const row of (j.data || [])) {
+          const parts = (row[0]||'').split('/');
+          if (parts.length < 3) continue;
+          const date = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1])-1, parseInt(parts[2]));
+          const o = parseFloat((row[3]||'').replace(/,/g,'')), h = parseFloat((row[4]||'').replace(/,/g,''));
+          const l = parseFloat((row[5]||'').replace(/,/g,'')), cl = parseFloat((row[6]||'').replace(/,/g,''));
+          if ([o,h,l,cl].every(v=>!isNaN(v))) rows.push({x:date.getTime(), y:[o,h,l,cl]});
+        }
+      }
+    } catch(e) {}
+    return rows;
+  }))).flat().sort((a,b) => a.x - b.x);
+
+  if (allData.length === 0) {
+    container.innerHTML = '<div class="d-empty">\u26A0\uFE0F \u7121\u6cd5\u53d6\u5f97K\u7dda\u8cc7\u6599</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  klineChart = new ApexCharts(container, {
+    chart: {type:'candlestick', height:290, toolbar:{show:true}, animations:{enabled:false}},
+    series: [{data: allData}],
+    xaxis: {type:'datetime', labels:{format:'MM/dd', style:{fontSize:'11px'}}},
+    yaxis: {tooltip:{enabled:true}, labels:{formatter:v=>v.toFixed(1), style:{fontSize:'11px'}}},
+    plotOptions: {candlestick:{colors:{upward:'#e53e3e', downward:'#38a169'}}},
+    tooltip: {x:{format:'yyyy/MM/dd'}},
+    grid: {borderColor:'#e2e8f0'},
+  });
+  klineChart.render();
+}
+
+// ── 三大法人 ──────────────────────────────────────────────────
+async function loadInstitutional(code, c) {
+  const el = document.getElementById('tc-inst');
+  el.innerHTML = '<div class="d-loading">\u8f09\u5165\u4e09\u5927\u6cd5\u4eba\u8cc7\u6599\u4e2d\u2026</div>';
+
+  const results = [];
+  const cur = new Date();
+  let tries = 0;
+  while (results.length < 5 && tries < 20) {
+    cur.setDate(cur.getDate() - 1);
+    if (cur.getDay() === 0 || cur.getDay() === 6) { tries++; continue; }
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth()+1).padStart(2,'0');
+    const d = String(cur.getDate()).padStart(2,'0');
+    const dateStr = y + m + d;
+    const displayDate = y + '/' + m + '/' + d;
+    try {
+      const url = 'https://www.twse.com.tw/fund/T86?response=json&date=' + dateStr + '&selectType=ALLBUT0999';
+      const r = await proxyFetch(url, 12000);
+      if (!r) { tries++; continue; }
+      const j = await r.json();
+      if (j.stat !== 'OK' || !Array.isArray(j.data)) { tries++; continue; }
+      const row = j.data.find(row => row[0] === code);
+      if (row) {
+        // T86 columns: [0]code [1]name [2]fgn_buy [3]fgn_sell [4]fgn_net
+        // [5]fgn_prop_buy [6]fgn_prop_sell [7]fgn_prop_net [8]trust_buy [9]trust_sell
+        // [10]trust_net [11]dealer_net [12..17]dealer sub [18]total
+        const pInt = s => parseInt((s||'0').replace(/,/g,'').replace(/\+/g,'')) || 0;
+        results.push({
+          date: displayDate,
+          foreign: pInt(row[4]),
+          trust:   pInt(row[10]),
+          dealer:  pInt(row[11]),
+          total:   pInt(row[18]),
+        });
+      }
+    } catch(e) {}
+    tries++;
+    await delay(250);
+  }
+
+  if (results.length === 0) {
+    el.innerHTML = '<div class="d-empty">\u26A0\uFE0F \u7121\u6cd5\u53d6\u5f97\u4e09\u5927\u6cd5\u4eba\u8cc7\u6599<br><small>\u53ef\u80fd\u70ba\u975e\u4ea4\u6613\u65e5</small></div>';
+    return;
+  }
+
+  const fmt = n => {
+    if (isNaN(n)) return '\u2014';
+    const cls = n >= 0 ? 'pos' : 'neg';
+    const sign = n >= 0 ? '+' : '';
+    return '<span class="' + cls + '">' + sign + n.toLocaleString() + '</span>';
+  };
+
+  el.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-bottom:8px">\u55ae\u4f4d\uff1a\u80a1</p>' +
+    '<table class="d-table"><thead><tr>' +
+    '<th>\u65e5\u671f</th><th>\u5916\u8cc7\u8cb7\u8ce3\u8d85</th><th>\u6295\u4fe1\u8cb7\u8ce3\u8d85</th><th>\u81ea\u71df\u8cb7\u8ce3\u8d85</th><th>\u4e09\u5927\u5408\u8a08</th>' +
+    '</tr></thead><tbody>' +
+    results.map(r => '<tr><td>' + r.date + '</td><td>' + fmt(r.foreign) + '</td><td>' +
+      fmt(r.trust) + '</td><td>' + fmt(r.dealer) + '</td><td>' + fmt(r.total) + '</td></tr>').join('') +
+    '</tbody></table>';
+}
+
+// ── 近五年股息 ───────────────────────────────────────────────
+async function loadDividend(code, c) {
+  const el = document.getElementById('tc-div');
+  el.innerHTML = '<div class="d-loading">\u8f09\u5165\u80a1\u606f\u8cc7\u6599\u4e2d\u2026</div>';
+
+  const suffix = c.twx === 'otc' ? '.TWO' : '.TW';
+  const ticker = code + suffix;
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=3mo&range=5y&events=div';
+  try {
+    const r = await proxyFetch(url, 14000);
+    if (!r) throw new Error('proxy failed');
+    const j = await r.json();
+    const divEvents = j?.chart?.result?.[0]?.events?.dividends;
+    if (!divEvents || Object.keys(divEvents).length === 0) {
+      el.innerHTML = '<div class="d-empty">\u66ab\u7121\u80a1\u606f\u8cc7\u6599<br><small>\u8a72\u80a1\u53ef\u80fd\u672a\u767c\u653e\u73fe\u91d1\u80a1\u606f</small></div>';
+      return;
+    }
+    // Sort by date descending
+    const divs = Object.values(divEvents).sort((a, b) => b.date - a.date);
+    // Group by ROC year
+    const byYear = {};
+    for (const dv of divs) {
+      const d = new Date(dv.date * 1000);
+      const rocYear = d.getFullYear() - 1911;
+      if (!byYear[rocYear]) byYear[rocYear] = {roc: rocYear, dates: [], total: 0};
+      byYear[rocYear].dates.push(d.toLocaleDateString('zh-TW'));
+      byYear[rocYear].total += dv.amount;
+    }
+    const years = Object.values(byYear).sort((a, b) => b.roc - a.roc).slice(0, 7);
+    el.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-bottom:8px">\u8cc7\u6599\u4f86\u6e90\uff1aYahoo Finance\uff0c\u55ae\u4f4d\uff1aTWD</p>' +
+      '<table class="d-table"><thead><tr>' +
+      '<th>\u80a1\u5229\u5e74\u5ea6</th><th>\u767c\u653e\u65e5\u671f</th><th>\u73fe\u91d1\u80a1\u606f\uff08\u5143\uff09</th>' +
+      '</tr></thead><tbody>' +
+      years.map(y => '<tr><td>' + y.roc + '\u5e74</td><td style="font-size:11px">' +
+        y.dates.slice(0,2).join('<br>') + '</td><td>' + y.total.toFixed(2) + '</td></tr>').join('') +
+      '</tbody></table>';
+  } catch(e) {
+    el.innerHTML = '<div class="d-empty">\u26A0\uFE0F \u7121\u6cd5\u53d6\u5f97\u80a1\u606f\u8cc7\u6599</div>';
+  }
+}
+
+// ── 分析師評等 ───────────────────────────────────────────────
+function showAnalyst(ticker) {
+  const el = document.getElementById('tc-analyst');
+  const data = (typeof ANALYST_DATA !== 'undefined') ? ANALYST_DATA[ticker] : null;
+
+  if (!data || data.error) {
+    el.innerHTML = '<div class="d-empty">\u66ab\u7121\u5206\u6790\u5e2b\u8a55\u7b49\u8cc7\u6599<br>' +
+      '<small>' + (data?.error || '\u672a\u6536\u9304') + '</small></div>';
+    return;
+  }
+
+  const recMap = {strong_buy:'\u5f37\u529b\u8cb7\u9032', buy:'\u8cb7\u9032',
+    hold:'\u4e2d\u7acb', none:'\u4e2d\u7acb/\u7121\u8a55\u7b49',
+    sell:'\u8ce3\u51fa', strong_sell:'\u5f37\u529b\u8ce3\u51fa'};
+  const rec = data.recKey || 'none';
+  const d = priceData[ticker];
+  const currentPrice = d ? d.price : null;
+
+  let upside = '';
+  if (currentPrice && data.targetMean) {
+    const pct = ((data.targetMean - currentPrice) / currentPrice * 100).toFixed(1);
+    const cls = pct >= 0 ? 'pos' : 'neg';
+    upside = ' <span class="' + cls + '">(' + (pct >= 0 ? '+' : '') + pct + '%)</span>';
+  }
+
+  el.innerHTML = '<div class="d-analyst">' +
+    '<div class="d-arow"><span class="d-alabel">\u8a55\u7b49</span>' +
+    '<span class="rec-badge rec-' + rec + '">' + (recMap[rec] || rec) + '</span></div>' +
+    (data.targetMean != null ?
+      '<div class="d-arow"><span class="d-alabel">\u5e73\u5747\u76ee\u6a19\u50f9</span>' +
+      '<span class="d-aval">NT$' + data.targetMean.toFixed(1) + upside + '</span></div>' : '') +
+    (data.targetHigh != null ?
+      '<div class="d-arow"><span class="d-alabel">\u6700\u9ad8\u76ee\u6a19\u50f9</span>' +
+      '<span class="d-aval">NT$' + data.targetHigh.toFixed(1) + '</span></div>' : '') +
+    (data.targetLow != null ?
+      '<div class="d-arow"><span class="d-alabel">\u6700\u4f4e\u76ee\u6a19\u50f9</span>' +
+      '<span class="d-aval">NT$' + data.targetLow.toFixed(1) + '</span></div>' : '') +
+    (data.numAnalysts != null ?
+      '<div class="d-arow"><span class="d-alabel">\u5206\u6790\u5e2b\u4eba\u6578</span>' +
+      '<span class="d-aval">' + data.numAnalysts + ' \u4eba</span></div>' : '') +
+    (data.recMean != null ?
+      '<div class="d-arow"><span class="d-alabel">\u8a55\u7b49\u5747\u5206 (1=\u5f37\u529b\u8cb7\u9032, 5=\u5f37\u529b\u8ce3\u51fa)</span>' +
+      '<span class="d-aval">' + data.recMean.toFixed(2) + '</span></div>' : '') +
+    '</div>';
+}
 
 render();
 fetchAll();
