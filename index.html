@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Computex 2026 — 上市廠商股票追蹤</title>
+<style>
+  :root {
+    --tw:#e53e3e; --us:#3182ce; --jp:#dd6b20; --kr:#38a169;
+    --bg:#f7fafc; --border:#e2e8f0; --text:#2d3748; --muted:#718096;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+  .header{background:linear-gradient(135deg,#1a202c,#2d3748);color:#fff;padding:20px 24px}
+  .header h1{font-size:22px;font-weight:700}
+  .header p{color:#a0aec0;font-size:13px;margin-top:4px}
+  .stats{display:flex;gap:20px;padding:14px 24px;background:#2d3748;border-top:1px solid #4a5568;flex-wrap:wrap;align-items:center}
+  .stat{display:flex;flex-direction:column;align-items:center;gap:1px}
+  .stat-num{font-size:22px;font-weight:800;color:#fff}
+  .stat-label{font-size:11px;color:#a0aec0}
+  .stat-tw .stat-num{color:#fc8181} .stat-us .stat-num{color:#63b3ed}
+  .stat-jp .stat-num{color:#f6ad55} .stat-kr .stat-num{color:#68d391}
+  .sep{width:1px;height:36px;background:#4a5568}
+  .controls{padding:12px 24px;background:#fff;border-bottom:1px solid var(--border);
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;position:sticky;top:0;z-index:10;
+    box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .filter-group{display:flex;gap:6px}
+  .btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;
+    color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;white-space:nowrap}
+  .btn:hover{border-color:#a0aec0;color:var(--text)}
+  .btn.active{color:#fff;border-color:transparent}
+  .btn[data-f="ALL"].active{background:var(--text)}
+  .btn[data-f="TW"].active{background:var(--tw)}
+  .btn[data-f="US"].active{background:var(--us)}
+  .btn[data-f="JP"].active{background:var(--jp)}
+  .btn[data-f="KR"].active{background:var(--kr)}
+  .search-wrap{position:relative;margin-left:auto}
+  .search-wrap input{padding:6px 12px 6px 32px;border:1.5px solid var(--border);border-radius:20px;
+    font-size:13px;outline:none;width:220px}
+  .search-wrap input:focus{border-color:#63b3ed}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted)}
+  .ref-btn{padding:6px 16px;border-radius:20px;border:none;background:#3182ce;color:#fff;
+    cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .ref-btn:hover{background:#2b6cb0} .ref-btn:disabled{background:#90cdf4;cursor:not-allowed}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.4);
+    border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+  .bar{padding:7px 24px;font-size:12px;display:flex;align-items:center;gap:8px}
+  .bar.info{background:#ebf8ff;color:#2b6cb0;border-bottom:1px solid #bee3f8}
+  .bar.warn{background:#fffbeb;color:#b7791f;border-bottom:1px solid #feebc8}
+  .bar.ok{background:#f0fff4;color:#276749;border-bottom:1px solid #c6f6d5}
+  .bar.hidden{display:none}
+  .count{font-size:12px;color:var(--muted);padding:8px 24px 4px}
+  .table-wrap{padding:8px 24px 32px;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;
+    box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  th{background:#f7fafc;padding:10px 14px;text-align:left;font-size:11px;font-weight:600;
+    color:var(--muted);text-transform:uppercase;letter-spacing:.5px;
+    border-bottom:2px solid var(--border);white-space:nowrap}
+  td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#f7fafc}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;color:#fff}
+  .badge-TW{background:var(--tw)} .badge-US{background:var(--us)}
+  .badge-JP{background:var(--jp)} .badge-KR{background:var(--kr)}
+  .co-name{font-weight:600;font-size:13.5px}
+  .co-en{color:var(--muted);font-size:12px;margin-top:1px}
+  .co-loc{color:#a0aec0;font-size:11px;margin-top:2px}
+  .ticker-plain{font-family:'SF Mono',Consolas,monospace;font-weight:600;color:#2d3748;font-size:13px}
+  .price-cell{font-family:'SF Mono',Consolas,monospace}
+  .pv{font-size:15px;font-weight:700}
+  .pc{font-size:11px;color:var(--muted);margin-left:2px}
+  .ch{font-size:12px;margin-top:2px}
+  .up{color:#38a169} .dn{color:#e53e3e}
+  .ld{color:#a0aec0;font-style:italic;font-size:12px}
+  .ep{color:#e53e3e;font-size:12px}
+  .prod{max-width:260px;color:var(--muted);font-size:12px;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .no-results{text-align:center;padding:60px;color:var(--muted);display:none}
+  .no-results .ic{font-size:40px;margin-bottom:12px}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--text);background:#edf2f7}
+  th.sort-asc::after{content:' \25B2';color:var(--text)}
+  th.sort-desc::after{content:' \25BC';color:var(--text)}
+  .auto-btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);
+    background:#fff;color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
+  .auto-btn.on{background:#f0fff4;border-color:#68d391;color:#276749;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>&#x1F5A5; Computex 2026 — 上市廠商股票追蹤</h1>
+  <p>台灣・美國・日本・韓國 四大市場上市參展商即時股價</p>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="stat-num" id="sAll">—</span><span class="stat-label">總廠商數</span></div>
+  <div class="sep"></div>
+  <div class="stat stat-tw"><span class="stat-num" id="sTW">—</span><span class="stat-label">台灣</span></div>
+  <div class="stat stat-us"><span class="stat-num" id="sUS">—</span><span class="stat-label">美國</span></div>
+  <div class="stat stat-jp"><span class="stat-num" id="sJP">—</span><span class="stat-label">日本</span></div>
+  <div class="stat stat-kr"><span class="stat-num" id="sKR">—</span><span class="stat-label">韓國</span></div>
+</div>
+
+<div class="controls">
+  <div class="filter-group" id="filters">
+    <button class="btn active" data-f="ALL">全部</button>
+    <button class="btn" data-f="TW">台灣</button>
+    <button class="btn" data-f="US">美國</button>
+    <button class="btn" data-f="JP">日本</button>
+    <button class="btn" data-f="KR">韓國</button>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">&#x1F50D;</span>
+    <input type="text" id="q" placeholder="搜尋廠商名稱或代號...">
+  </div>
+  <button class="ref-btn" id="refBtn" onclick="fetchAll()">
+    <span id="refIco">&#x21BB;</span> 更新股價
+  </button>
+  <button class="auto-btn" id="autoBtn" onclick="toggleAuto()">&#x23F1; 自動更新</button>
+</div>
+
+<div class="bar info hidden" id="bar"></div>
+<div class="count" id="cnt"></div>
+
+<div class="table-wrap">
+  <table id="tbl">
+    <thead><tr>
+      <th class="sortable" data-col="name">廠商名稱</th>
+      <th class="sortable" data-col="ticker">股票代號</th>
+      <th class="sortable" data-col="market">市場</th>
+      <th class="sortable" data-col="change">漲跌幅</th>
+      <th class="sortable" data-col="price">即時股價</th>
+      <th class="sortable" data-col="industry">產業別</th>
+      <th>Computex 展出產品</th>
+      <th>攤位</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="no-results" id="noRes">
+    <div class="ic">&#x1F50D;</div>
+    <div>找不到符合條件的廠商</div>
+  </div>
+</div>
+
+<script>
+const COMPANIES = [
+  {name:'華碩電腦',en:'ASUSTeK / ASUS',ticker:'2357.TW',market:'TW',twx:'tse',industry:'電腦/主機板',products:'',hall:'世貿一館 AI機器人區',booth:'A0618'},
+  {name:'宏碁',en:'Acer',ticker:'2353.TW',market:'TW',twx:'tse',industry:'電腦/筆電',products:'筆記型電腦',hall:'南港一館 系統及解決方案區',booth:'L0802'},
+  {name:'微星科技',en:'MSI',ticker:'2377.TW',market:'TW',twx:'tse',industry:'主機板/顯卡/電競',products:'桌上型電腦,筆記型電腦,個人電腦主機板,液晶顯示器,顯示卡,藍牙鍵盤及滑鼠',hall:'南港一館 系統及解決方案區',booth:'L0118'},
+  {name:'技嘉科技',en:'Gigabyte',ticker:'2376.TW',market:'TW',twx:'tse',industry:'主機板/顯卡',products:'筆記型電腦,個人電腦主機板,顯示卡',hall:'南港一館 系統及解決方案區',booth:'M0520'},
+  {name:'聯發科技',en:'MediaTek',ticker:'2454.TW',market:'TW',twx:'tse',industry:'IC設計/SoC',products:'IC設計、封裝及代工',hall:'南港一館 系統及解決方案區',booth:'L0818'},
+  {name:'瑞昱半導體',en:'Realtek',ticker:'2379.TW',market:'TW',twx:'tse',industry:'IC設計/網路',products:'IC設計、封裝及代工',hall:'南港一館 半導體及先進技術區',booth:'G0111'},
+  {name:'台達電子',en:'Delta Electronics',ticker:'2308.TW',market:'TW',twx:'tse',industry:'電源/散熱',products:'',hall:'南港一館 系統及解決方案區',booth:'L0601a'},
+  {name:'鴻海精密',en:'Foxconn',ticker:'2317.TW',market:'TW',twx:'tse',industry:'電子製造',products:'',hall:'南港一館 系統及解決方案區',booth:'M0120'},
+  {name:'研華',en:'Advantech',ticker:'2395.TW',market:'TW',twx:'tse',industry:'工業電腦/AIoT',products:'',hall:'世貿一館 AI機器人區',booth:'A0618'},
+  {name:'和碩聯合科技',en:'Pegatron',ticker:'4938.TW',market:'TW',twx:'tse',industry:'電子製造',products:'伺服器',hall:'南港一館 系統及解決方案區',booth:'L0104'},
+  {name:'仁寶電腦',en:'Compal',ticker:'2324.TW',market:'TW',twx:'tse',industry:'電子製造/筆電',products:'伺服器,筆記型電腦',hall:'南港一館 系統及解決方案區',booth:'M0804'},
+  {name:'英業達',en:'Inventec',ticker:'2356.TW',market:'TW',twx:'tse',industry:'電子製造/伺服器',products:'',hall:'南港二館 AI運算及系統解決方案區',booth:'R0313a'},
+  {name:'光寶科技',en:'Lite-On',ticker:'2301.TW',market:'TW',twx:'tse',industry:'電源/光電',products:'雲端及資訊系統服務',hall:'南港一館 AI運算與科技區',booth:'J0617a'},
+  {name:'創見資訊',en:'Transcend',ticker:'2451.TW',market:'TW',twx:'tse',industry:'記憶體/儲存',products:'固態硬碟',hall:'南港二館 儲存及管理解決方案區',booth:'R1206'},
+  {name:'宏正自動科技',en:'ATEN International',ticker:'6277.TW',market:'TW',twx:'tse',industry:'KVM/IT基礎設施',products:'其他網通產品',hall:'南港一館 先進通訊及網路產品區',booth:'K0116'},
+  {name:'義隆電子',en:'Elan Microelectronics',ticker:'2458.TW',market:'TW',twx:'tse',industry:'觸控IC',products:'電子書閱讀器',hall:'世貿一館 電子紙產業專區',booth:'D0225a'},
+  {name:'映泰',en:'BIOSTAR',ticker:'2399.TW',market:'TW',twx:'tse',industry:'主機板',products:'工業用電腦,崁入式系統及周邊,工業用電腦主機板,個人電腦主機板,顯示卡,動態隨機存取記憶體',hall:'南港二館 工業物聯網及嵌入式系統區',booth:'P0914'},
+  {name:'上銀科技',en:'HIWIN Technologies',ticker:'2049.TW',market:'TW',twx:'tse',industry:'機器人/精密機械',products:'自動化及智慧化整廠設備,其他自動化及智慧化設備,減速機,伺服馬達,致動器',hall:'世貿一館 科技應用暨體驗館',booth:'D0708'},
+  {name:'達發科技',en:'Airoha Technology',ticker:'6719.TW',market:'TW',twx:'tse',industry:'無線通訊IC',products:'系統單晶片',hall:'世貿一館 電子紙產業專區',booth:'D0229'},
+  {name:'緯穎科技',en:'Wiwynn',ticker:'6669.TW',market:'TW',twx:'tse',industry:'伺服器/AI基礎設施',products:'',hall:'南港一館 AI運算與科技區',booth:'J0106'},
+  {name:'文曄科技',en:'WPG Holdings',ticker:'3702.TW',market:'TW',twx:'tse',industry:'電子零件通路',products:'電子紙',hall:'世貿一館 電子紙產業專區',booth:'D0221a'},
+  {name:'貿聯國際',en:'BizLink',ticker:'3665.TW',market:'TW',twx:'tse',industry:'連接線/傳輸',products:'機器人,電動車電池及充電站,先進駕駛輔助系統,智慧座艙',hall:'南港一館 系統及解決方案區',booth:'N0802'},
+  {name:'全漢企業',en:'FSP Group',ticker:'3015.TW',market:'TW',twx:'tse',industry:'電源供應器',products:'不斷電系統,交換式電源供應器,電源適配器,電腦機殼,電腦電源',hall:'南港一館 AI運算與科技區',booth:'K0305a'},
+  {name:'力晶積成',en:'PSMC',ticker:'6770.TW',market:'TW',twx:'tse',industry:'晶圓代工',products:'',hall:'南港一館 AI運算與科技區',booth:'J0517a'},
+  {name:'台灣化學纖維',en:'Formosa Plastics',ticker:'1301.TW',market:'TW',twx:'tse',industry:'化工/材料',products:'電腦機殼',hall:'世貿一館 科技應用暨體驗館',booth:'D0527'},
+  {name:'環隆科技',en:'USI',ticker:'3033.TW',market:'TW',twx:'tse',industry:'模組/電子製造',products:'毫米波雷達',hall:'南港一館 先進通訊及網路產品區',booth:'K1221a'},
+  {name:'飛捷科技',en:'Flytech Technology',ticker:'6206.TW',market:'TW',twx:'tse',industry:'POS/工業電腦',products:'銷售點管理系統,多媒體機台',hall:'南港二館 智慧商業服務解決方案區',booth:'P0106'},
+  {name:'明基電通',en:'Qisda / BenQ',ticker:'2352.TW',market:'TW',twx:'tse',industry:'顯示器/投影',products:'投影機,工業物聯網解決方案',hall:'南港一館 系統及解決方案區',booth:'M0104'},
+  {name:'樺漢科技',en:'Ennoconn',ticker:'6414.TW',market:'TW',twx:'tse',industry:'工業電腦/AI',products:'伺服器',hall:'南港一館 先進通訊及網路產品區',booth:'K0816'},
+  {name:'普安科技',en:'Infortrend Technology',ticker:'2495.TW',market:'TW',twx:'tse',industry:'儲存解決方案',products:'網路儲存,雲端及資訊系統服務',hall:'南港一館 AI運算與科技區',booth:'J0306'},
+  {name:'健策精密工業',en:'Jianshu Precision',ticker:'3653.TW',market:'TW',twx:'tse',industry:'散熱解決方案',products:'插座,散熱片及熱導管',hall:'南港一館 AI運算與科技區',booth:'J0118'},
+  {name:'圓剛科技',en:'AVerMedia Technologies',ticker:'2417.TW',market:'TW',twx:'tse',industry:'影音擷取/直播',products:'',hall:'南港一館 AI運算與科技區',booth:'J0802'},
+  {name:'凌航科技',en:'Leadtek Research',ticker:'2465.TW',market:'TW',twx:'tse',industry:'顯卡/工作站',products:'固態硬碟,隨身碟,記憶卡,動態隨機存取記憶體',hall:'南港二館 工業物聯網及嵌入式系統區',booth:'P0514'},
+  {name:'神雲科技',en:'MiTAC Computing',ticker:'3706.TW',market:'TW',twx:'tse',industry:'伺服器',products:'個人電腦主機板',hall:'南港二館 AI運算及系統解決方案區',booth:'R0504'},
+  {name:'群聯電子',en:'Phison',ticker:'8299.TWO',market:'TW',twx:'otc',industry:'快閃記憶體控制器',products:'',hall:'南港二館 創新與新創展區',booth:'S0524'},
+  {name:'元太科技',en:'E Ink Holdings',ticker:'8069.TWO',market:'TW',twx:'otc',industry:'電子紙顯示',products:'電子書閱讀器',hall:'世貿一館 電子紙產業專區',booth:'D0101'},
+  {name:'信驊科技',en:'ASPEED Technology',ticker:'5274.TWO',market:'TW',twx:'otc',industry:'伺服器管理IC',products:'IC設計、封裝及代工,網路監控攝影機',hall:'南港一館 系統及解決方案區',booth:'M0403a'},
+  {name:'神盾',en:'Egis Technology',ticker:'6462.TWO',market:'TW',twx:'otc',industry:'指紋辨識IC',products:'IC設計、封裝及代工',hall:'南港二館 AI運算及系統解決方案區',booth:'R0826'},
+  {name:'雙鴻科技',en:'Auras Technology',ticker:'3324.TWO',market:'TW',twx:'otc',industry:'散熱模組',products:'',hall:'南港一館 AI運算與科技區',booth:'J0806'},
+  {name:'遊戲橘子',en:'Gamania Digital',ticker:'6180.TWO',market:'TW',twx:'otc',industry:'遊戲/數位娛樂',products:'',hall:'世貿一館 AI機器人區',booth:'A0509a'},
+  {name:'宸曜科技',en:'Neousys Technology',ticker:'6922.TWO',market:'TW',twx:'otc',industry:'嵌入式電腦',products:'工業用電腦,崁入式系統及周邊',hall:'南港二館 AI運算及系統解決方案區',booth:'R0129'},
+  {name:'磐儀科技',en:'ICP DAS',ticker:'3594.TWO',market:'TW',twx:'otc',industry:'工業自動化/IoT',products:'工業用電腦,崁入式系統及周邊,工業用電腦主機板,人機介面,工業物聯網平台,工業物聯網解決方案',hall:'南港二館 工業物聯網及嵌入式系統區',booth:'P0713'},
+  {name:'宇瞻科技',en:'Apacer Technology',ticker:'8271.TW',market:'TW',twx:'tse',industry:'記憶體/儲存',products:'動態隨機存取記憶體',hall:'南港一館 零組件及先進電源技術區',booth:'I0108'},
+  {name:'凌華科技',en:'ADLINK Technology',ticker:'6166.TW',market:'TW',twx:'tse',industry:'工業電腦/AI',products:'工業用電腦',hall:'南港二館 工業物聯網及嵌入式系統區',booth:'P0425a'},
+  {name:'威剛科技',en:'ADATA',ticker:'3260.TWO',market:'TW',twx:'otc',industry:'記憶體/儲存',products:'筆記型電腦',hall:'南港一館 系統及解決方案區',booth:'L0617a'},
+  {name:'Thermaltake',en:'Thermaltake Technology',ticker:'3540.TWO',market:'TW',twx:'otc',industry:'機殼/散熱/電競',products:'電腦機殼,電腦電源,電腦散熱裝置及風扇,電動機車,電競桌上型電腦,液冷式散熱系統,電競螢幕,電競鍵盤',hall:'南港一館 外商區',booth:'N0102'},
+  {name:'新漢',en:'NEXCOM International',ticker:'8234.TWO',market:'TW',twx:'otc',industry:'網路/嵌入式電腦',products:'',hall:'世貿一館 AI機器人區',booth:'A0618'},
+  {name:'奕力科技',en:'ILI Technology',ticker:'6239.TW',market:'TW',twx:'tse',industry:'顯示驅動IC',products:'電子紙',hall:'世貿一館 電子紙產業專區',booth:'D0126'},
+  {name:'NVIDIA',en:'NVIDIA Corporation',ticker:'NVDA',market:'US',twx:'',industry:'GPU/AI加速器',products:'中央處理器 /圖形處理器/加速處理器',hall:'南港一館 外商區',booth:'N1431'},
+  {name:'Super Micro Computer',en:'Super Micro Computer',ticker:'SMCI',market:'US',twx:'',industry:'伺服器/AI基礎設施',products:'AI伺服器,系統整合服務,邊緣運算,生成式AI / 大型語言模型,AI 氣冷/水冷/液冷散熱系統,資料中心 / 雲端服務供應商',hall:'南港一館 外商區',booth:'N0602'},
+  {name:'Dell Technologies',en:'Dell Technologies',ticker:'DELL',market:'US',twx:'',industry:'電腦/伺服器',products:'發光二極體,平板電腦,耳機及無線藍牙耳機,耳麥,電腦鎖,觸控顯示器及面板,印表機,電腦線材及連接器',hall:'南港一館 外商區',booth:'N1231'},
+  {name:'Cisco Systems',en:'Cisco Systems',ticker:'CSCO',market:'US',twx:'',industry:'網路設備',products:'伺服器',hall:'南港一館 系統及解決方案區',booth:'M1229'},
+  {name:'Synaptics',en:'Synaptics Inc.',ticker:'SYNA',market:'US',twx:'',industry:'觸控/IoT IC',products:'IC設計、封裝及代工',hall:'南港二館 半導體及先進技術區',booth:'X0022'},
+  {name:'MaxLinear',en:'MaxLinear Inc.',ticker:'MXL',market:'US',twx:'',industry:'寬頻/連接IC',products:'系統單晶片,嵌入式處理器,IC設計、封裝及代工,網路儲存',hall:'南港一館 先進通訊及網路產品區',booth:'K0006'},
+  {name:'Monolithic Power',en:'Monolithic Power Systems',ticker:'MPWR',market:'US',twx:'',industry:'電源管理IC',products:'機器人,機械手臂,雲端及資訊系統服務,伺服馬達,AI伺服器',hall:'南港一館 外商區',booth:'N0530'},
+  {name:'Gen Digital',en:'Gen Digital (Norton)',ticker:'GEN',market:'US',twx:'',industry:'資安軟體',products:'崁入式系統及周邊,防毒及資安軟體,應用軟體,其他電腦軟體,閘道器,虛擬私人網路',hall:'南港二館 工業物聯網及嵌入式系統區',booth:'P0419'},
+  {name:'Celestica',en:'Celestica Inc.',ticker:'CLS',market:'US',twx:'',industry:'電子製造服務',products:'伺服器,應用軟體,網路交換器,開源開發硬體/軟體,系統整合服務,資料中心 / 雲端服務供應商,AI伺服器,矽光子',hall:'南港一館 先進通訊及網路產品區',booth:'J1233a'},
+  {name:'Flex Ltd',en:'Flex Ltd (Flextronics)',ticker:'FLEX',market:'US',twx:'',industry:'電子製造服務',products:'交換式電源供應器,AI 氣冷/水冷/液冷散熱系統,AI交換式電源供應器,資料中心 / 雲端服務供應商,系統整合服務',hall:'南港一館 AI運算與科技區',booth:'J0132'},
+  {name:'慧榮科技',en:'Silicon Motion',ticker:'SIMO',market:'US',twx:'',industry:'NAND控制器',products:'IC設計、封裝及代工',hall:'南港一館 半導體及先進技術區',booth:'G0001'},
+  {name:'奇景光電',en:'Himax Technologies',ticker:'HIMX',market:'US',twx:'',industry:'顯示驅動IC',products:'IC設計、封裝及代工',hall:'世貿一館 電子紙產業專區',booth:'D0235'},
+  {name:'趨勢科技',en:'Trend Micro',ticker:'4704.T',market:'JP',twx:'',industry:'資安軟體',products:'防毒及資安軟體',hall:'南港一館 系統及解決方案區',booth:'L0417a'},
+  {name:'台灣夏普',en:'Sharp Corporation',ticker:'6753.T',market:'JP',twx:'',industry:'消費電子/顯示',products:'電子紙',hall:'世貿一館 電子紙產業專區',booth:'D0307a'},
+  {name:'台灣基恩斯',en:'Keyence Corporation',ticker:'6861.T',market:'JP',twx:'',industry:'工業自動化/感測器',products:'其他汽車電子',hall:'南港一館 智慧移動與無人載具區',booth:'N0018'},
+  {name:'住友精密工業',en:'Sumitomo Precision',ticker:'6330.T',market:'JP',twx:'',industry:'精密製造/散熱',products:'散熱片及熱導管,電腦散熱裝置及風扇,液冷式散熱系統',hall:'南港一館 外商區',booth:'N0010'},
+  {name:'SoftBank',en:'SoftBank Group',ticker:'9984.T',market:'JP',twx:'',industry:'電信/科技投資',products:'低功耗廣域網路模組,工業物聯網平台,工業物聯網解決方案',hall:'南港一館 外商區',booth:'N0001'},
+  {name:'SK海力士',en:'SK Hynix',ticker:'000660.KS',market:'KR',twx:'',industry:'DRAM/NAND記憶體',products:'固態硬碟,動態隨機存取記憶體,汽車晶片及定速巡航系統,生成式AI / 大型語言模型',hall:'南港一館 外商區',booth:'N0501a'},
+  {name:'三星電子',en:'Samsung Electronics',ticker:'005930.KS',market:'KR',twx:'',industry:'記憶體/消費電子',products:'',hall:'南港一館 系統及解決方案區',booth:'L0405'},
+  {name:'HANMI Semi',en:'HANMI Semiconductor',ticker:'042700.KS',market:'KR',twx:'',industry:'半導體封裝設備',products:'動態隨機存取記憶體,生成式AI / 大型語言模型',hall:'南港一館 外商區',booth:'N0008'},
+  {name:'Shinsegae I&C',en:'SHINSEGAE Information',ticker:'035510.KS',market:'KR',twx:'',industry:'IT服務/零售科技',products:'',hall:'世貿一館 AI機器人區',booth:'A0618'},
+  {name:'LS Materials',en:'LS Materials Co., Ltd.',ticker:'417200.KS',market:'KR',twx:'',industry:'材料/電子零件',products:'儲能系統解決方案',hall:'南港一館 零組件及先進電源技術區',booth:'I0303'},
+  {name:'Point Mobile',en:'Point Mobile Co., Ltd.',ticker:'318020.KS',market:'KR',twx:'',industry:'行動條碼掃描器',products:'工業級行動電腦,RFID無線辨識系統,5G/5G-A/6G相關產品 ,其他行動裝置配件',hall:'南港二館 智慧商業服務解決方案區',booth:'P0604a'}
+];
+
+const MNAMES = {TW:'\u53F0\u7063', US:'\u7F8E\u570B', JP:'\u65E5\u672C', KR:'\u97D3\u570B'};
+const CUR   = {TW:'TWD', US:'USD', JP:'JPY', KR:'KRW'};
+let curFilter = 'ALL', priceData = {}, sortCol = 'change', sortDir = -1, autoTimer = null;
+
+// Init stats
+document.getElementById('sAll').textContent = COMPANIES.length;
+['TW','US','JP','KR'].forEach(m => {
+  document.getElementById('s'+m).textContent = COMPANIES.filter(c=>c.market===m).length;
+});
+
+// ---------- Multi-proxy fetch ----------
+const PROXIES = [
+  url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+];
+
+async function proxyFetch(url, timeoutMs = 9000) {
+  for (const mkProxy of PROXIES) {
+    try {
+      const r = await fetch(mkProxy(url), {signal: AbortSignal.timeout(timeoutMs)});
+      if (r.ok) return r;
+    } catch(e) {}
+  }
+  return null;
+}
+
+// Taiwan: TWSE official API (real-time)
+async function fetchTW(tickers) {
+  const parts = tickers.map(c => {
+    const code = c.ticker.replace(/\.(TW|TWO)$/i, '');
+    return (c.twx === 'otc' ? 'otc_' : 'tse_') + code + '.tw';
+  });
+  const url = 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' + parts.join('|') + '&json=1&delay=0';
+  try {
+    const r = await proxyFetch(url, 12000);
+    if (!r) return;
+    const j = await r.json();
+    const items = j?.msgArray || [];
+    items.forEach(item => {
+      const priceStr = (item.z && item.z !== '-') ? item.z : item.y;
+      const price = parseFloat(priceStr);
+      const prev  = parseFloat(item.y);
+      if (!isNaN(price) && !isNaN(prev)) {
+        const change = ((price - prev) / prev) * 100;
+        priceData[item.c + '.TW']  = {price, change, currency: 'TWD'};
+        priceData[item.c + '.TWO'] = {price, change, currency: 'TWD'};
+      }
+    });
+  } catch(e) {}
+}
+
+// US/JP: Stooq CSV
+async function fetchStooq(ticker, market) {
+  let sym;
+  if (market === 'US') sym = ticker.toLowerCase() + '.us';
+  else if (market === 'JP') sym = ticker.replace('.T','') + '.jp';
+  else return null;
+
+  const url = 'https://stooq.com/q/l/?s=' + sym + '&f=sd2ohlcv&h&e=csv';
+  try {
+    const r = await proxyFetch(url);
+    if (!r) return null;
+    const txt = await r.text();
+    const lines = txt.trim().split('\n');
+    if (lines.length < 2) return null;
+    const cols = lines[1].split(',');
+    const price = parseFloat(cols[5]);
+    const open  = parseFloat(cols[2]);
+    if (isNaN(price)) return null;
+    const change = !isNaN(open) && open > 0 ? ((price - open) / open * 100) : null;
+    return {price, change, currency: CUR[market]};
+  } catch(e) { return null; }
+}
+
+// KR: Yahoo Finance v8 via proxy
+async function fetchYF(ticker) {
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + ticker + '?interval=1d&range=1d';
+  try {
+    const r = await proxyFetch(url);
+    if (!r) return null;
+    const j = await r.json();
+    const meta = j?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price  = meta.regularMarketPrice;
+    const prev   = meta.chartPreviousClose || meta.previousClose;
+    const change = (prev && prev > 0) ? ((price - prev) / prev * 100) : null;
+    return {price, change, currency: meta.currency || 'KRW'};
+  } catch(e) { return null; }
+}
+
+// ---------- Main fetch ----------
+async function fetchAll() {
+  const btn = document.getElementById('refBtn');
+  const ico = document.getElementById('refIco');
+  const bar = document.getElementById('bar');
+  btn.disabled = true;
+  ico.innerHTML = '<span class="spin"></span>';
+  bar.className = 'bar info';
+  bar.textContent = '正在更新股價，請稍候…';
+
+  // Set loading state
+  COMPANIES.forEach(c => {
+    const el = document.getElementById('p_' + cellId(c.ticker));
+    if (el) el.innerHTML = '<span class="ld">載入中…</span>';
+  });
+
+  let ok = 0, fail = 0;
+
+  // 1. Taiwan batch (single request)
+  const twCos = COMPANIES.filter(c => c.market === 'TW');
+  await fetchTW(twCos);
+  twCos.forEach(c => {
+    if (priceData[c.ticker]) { ok++; } else { fail++; }
+    updateCell(c.ticker);
+  });
+
+  // 2. US via Stooq (batches of 4)
+  const usCos = COMPANIES.filter(c => c.market === 'US');
+  for (let i = 0; i < usCos.length; i += 4) {
+    await Promise.all(usCos.slice(i, i+4).map(async c => {
+      const d = await fetchStooq(c.ticker, 'US');
+      if (d) { priceData[c.ticker] = d; ok++; } else { fail++; }
+      updateCell(c.ticker);
+    }));
+    if (i + 4 < usCos.length) await delay(300);
+  }
+
+  // 3. Japan via Stooq
+  const jpCos = COMPANIES.filter(c => c.market === 'JP');
+  await Promise.all(jpCos.map(async c => {
+    const d = await fetchStooq(c.ticker, 'JP');
+    if (d) { priceData[c.ticker] = d; ok++; } else { fail++; }
+    updateCell(c.ticker);
+  }));
+
+  // 4. Korea via Yahoo Finance
+  const krCos = COMPANIES.filter(c => c.market === 'KR');
+  for (const c of krCos) {
+    const d = await fetchYF(c.ticker);
+    if (d) { priceData[c.ticker] = d; ok++; } else { fail++; }
+    updateCell(c.ticker);
+    await delay(200);
+  }
+
+  btn.disabled = false;
+  ico.textContent = '\u21BB';
+  const now = new Date().toLocaleTimeString('zh-TW');
+  bar.className = fail === 0 ? 'bar ok' : 'bar warn';
+  bar.textContent = fail === 0
+    ? '\u2705 全部更新完成（' + ok + ' 支）\uFF5C最後更新：' + now
+    : '\u26A0\uFE0F 成功 ' + ok + ' 支，' + fail + ' 支無法取得（休市或 API 限制）\uFF5C更新：' + now;
+  render();
+}
+
+function toggleAuto() {
+  const btn = document.getElementById('autoBtn');
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    btn.classList.remove('on');
+    btn.textContent = '\u23F1 自動更新';
+  } else {
+    autoTimer = setInterval(fetchAll, 60000);
+    btn.classList.add('on');
+    btn.textContent = '\u23F1 自動更新 (60s)';
+  }
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function cellId(ticker) { return ticker.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function fmtPrice(price, cur) {
+  if (cur === 'KRW') return price.toLocaleString('ko-KR', {maximumFractionDigits:0});
+  if (cur === 'JPY') return price.toLocaleString('ja-JP', {maximumFractionDigits:0});
+  if (cur === 'TWD') return price.toLocaleString('zh-TW', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function priceHtml(ticker) {
+  const d = priceData[ticker];
+  if (!d) return '<span class="ep">—</span>';
+  const sign = d.change >= 0 ? '+' : '';
+  const cls  = d.change >= 0 ? 'up' : 'dn';
+  const arr  = d.change >= 0 ? '\u25B2' : '\u25BC';
+  return '<span class="pv">' + fmtPrice(d.price, d.currency) + '</span>' +
+    '<span class="pc">' + d.currency + '</span>' +
+    (d.change != null
+      ? '<div class="ch ' + cls + '">' + arr + ' ' + sign + d.change.toFixed(2) + '%</div>'
+      : '');
+}
+
+function updateCell(ticker) {
+  // After individual update, re-render to keep sort order and both columns in sync
+  // (lightweight: just update the specific change cell by id)
+  const d = priceData[ticker];
+  const el = document.getElementById('p_' + cellId(ticker));
+  if (!el || !d) return;
+  if (d.change != null) {
+    const sign = d.change >= 0 ? '+' : '';
+    const cls  = d.change >= 0 ? 'up' : 'dn';
+    const arr  = d.change >= 0 ? '\u25B2' : '\u25BC';
+    el.innerHTML = '<span class="ch ' + cls + '" style="font-size:13px">' + arr + ' ' + sign + d.change.toFixed(2) + '%</span>';
+  } else {
+    el.innerHTML = '<span style="color:var(--muted);font-size:12px">\u2014</span>';
+  }
+}
+
+function sortVal(c) {
+  const d = priceData[c.ticker];
+  if (sortCol === 'name')     return c.name;
+  if (sortCol === 'ticker')   return c.ticker.replace(/\.(TW|TWO|T|KS)$/i, '');
+  if (sortCol === 'market')   return c.market;
+  if (sortCol === 'industry') return c.industry;
+  if (sortCol === 'price')    return d ? d.price : -Infinity;
+  if (sortCol === 'change')   return d && d.change != null ? d.change : -Infinity;
+  return 0;
+}
+
+function render() {
+  const q = document.getElementById('q').value.toLowerCase();
+  let rows = COMPANIES.filter(c => {
+    if (curFilter !== 'ALL' && c.market !== curFilter) return false;
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) || c.en.toLowerCase().includes(q) ||
+           c.ticker.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q);
+  });
+
+  if (sortCol) {
+    rows = [...rows].sort((a, b) => {
+      const va = sortVal(a), vb = sortVal(b);
+      if (va === vb) return 0;
+      return (va < vb ? -1 : 1) * sortDir;
+    });
+  }
+
+  // Update header indicators
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  });
+
+  document.getElementById('cnt').textContent = '顯示 ' + rows.length + ' / ' + COMPANIES.length + ' 家廠商';
+
+  const noRes = document.getElementById('noRes');
+  const tbody = document.getElementById('tbody');
+  if (rows.length === 0) { tbody.innerHTML = ''; noRes.style.display = 'block'; return; }
+  noRes.style.display = 'none';
+
+  tbody.innerHTML = rows.map(c => {
+    const id = 'p_' + cellId(c.ticker);
+    const d = priceData[c.ticker];
+    const prod = c.products
+      ? '<div class="prod">' + c.products.replace(/,/g, '\u30FB') + '</div>'
+      : '<span style="color:#cbd5e0">—</span>';
+    const loc = c.hall ? c.hall + (c.booth ? ' \xB7 ' + c.booth : '') : '';
+    // Change cell
+    let chHtml = '<span class="ep">\u2014</span>';
+    if (d && d.change != null) {
+      const sign = d.change >= 0 ? '+' : '';
+      const cls  = d.change >= 0 ? 'up' : 'dn';
+      const arr  = d.change >= 0 ? '\u25B2' : '\u25BC';
+      chHtml = '<span class="ch ' + cls + '" style="font-size:13px">' + arr + ' ' + sign + d.change.toFixed(2) + '%</span>';
+    } else if (d) {
+      chHtml = '<span style="color:var(--muted);font-size:12px">—</span>';
+    } else if (!d) {
+      chHtml = '<span class="ld">\u8f09\u5165\u4e2d\u2026</span>';
+    }
+    // Price cell (no change % row, just value + currency)
+    let prHtml = '<span class="ep">\u2014</span>';
+    if (d) prHtml = '<span class="pv">' + fmtPrice(d.price, d.currency) + '</span><span class="pc"> ' + d.currency + '</span>';
+    return '<tr>' +
+      '<td><div class="co-name">' + c.name + '</div>' +
+           '<div class="co-en">' + c.en + '</div>' +
+           (loc ? '<div class="co-loc">' + loc + '</div>' : '') + '</td>' +
+      '<td><span class="ticker-plain">' + c.ticker.replace(/\.(TW|TWO|T|KS)$/i, '') + '</span></td>' +
+      '<td><span class="badge badge-' + c.market + '">' + MNAMES[c.market] + '</span></td>' +
+      '<td class="price-cell" id="' + id + '">' + chHtml + '</td>' +
+      '<td class="price-cell">' + prHtml + '</td>' +
+      '<td>' + c.industry + '</td>' +
+      '<td>' + prod + '</td>' +
+      '<td style="color:var(--muted);font-size:12px;white-space:nowrap">' + (c.booth || '\u2014') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+document.getElementById('tbl').addEventListener('click', e => {
+  const th = e.target.closest('th[data-col]');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = col === 'change' || col === 'price' ? -1 : 1; }
+  render();
+});
+
+document.getElementById('filters').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]');
+  if (!b) return;
+  document.querySelectorAll('[data-f]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  curFilter = b.dataset.f;
+  render();
+});
+document.getElementById('q').addEventListener('input', render);
+
+render();
+fetchAll();
+</script>
+</body>
+</html>
