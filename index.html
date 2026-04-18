@@ -88,6 +88,11 @@
   .auto-btn{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);
     background:#fff;color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
   .auto-btn.on{background:#f0fff4;border-color:#68d391;color:#276749;font-weight:600}
+  .tb-rec{display:inline-block;padding:2px 7px;border-radius:9px;font-size:10px;font-weight:700;color:#fff;white-space:nowrap}
+  .tb-rec-strong_buy{background:#276749} .tb-rec-buy{background:#38a169}
+  .tb-rec-hold,.tb-rec-none{background:#718096} .tb-rec-sell{background:#c53030}
+  .tb-rec-strong_sell{background:#742a2a}
+  .upside-pos{color:#38a169;font-weight:600} .upside-neg{color:#e53e3e;font-weight:600}
 
   /* ── Drawer ── */
   #overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:none}
@@ -179,6 +184,9 @@
       <th class="sortable" data-col="market">市場</th>
       <th class="sortable" data-col="change">漲跌幅</th>
       <th class="sortable" data-col="price">即時股價</th>
+      <th class="sortable" data-col="rating">分析師評等</th>
+      <th class="sortable" data-col="target">目標均價</th>
+      <th class="sortable" data-col="upside">上漲空間</th>
       <th class="sortable" data-col="industry">產業別</th>
       <th>Computex 展出產品</th>
       <th>攤位</th>
@@ -982,12 +990,19 @@ function updateCell(ticker) {
 
 function sortVal(c) {
   const d = priceData[c.ticker];
+  const ad = (typeof ANALYST_DATA !== 'undefined') ? ANALYST_DATA[c.ticker] : null;
   if (sortCol === 'name')     return c.name;
   if (sortCol === 'ticker')   return c.ticker.replace(/\.(TW|TWO|T|KS)$/i, '');
   if (sortCol === 'market')   return c.market;
   if (sortCol === 'industry') return c.industry;
   if (sortCol === 'price')    return d ? d.price : -Infinity;
   if (sortCol === 'change')   return d && d.change != null ? d.change : -Infinity;
+  if (sortCol === 'rating')   return ad && ad.recMean != null ? ad.recMean : 99;
+  if (sortCol === 'target')   return ad && ad.targetMean != null ? ad.targetMean : -Infinity;
+  if (sortCol === 'upside') {
+    if (ad && ad.targetMean != null && d) return (ad.targetMean - d.price) / d.price * 100;
+    return -Infinity;
+  }
   return 0;
 }
 
@@ -1045,6 +1060,28 @@ function render() {
     const rowCls = isTW ? ' class="tw-row"' : '';
     const rowClick = isTW ? ' onclick="openDrawer(\'' + c.ticker + '\')"' : '';
 
+    // Analyst columns (TW only)
+    const ad = (typeof ANALYST_DATA !== 'undefined') ? ANALYST_DATA[c.ticker] : null;
+    const recMap = {strong_buy:'\u5f37\u529b\u8cb7\u9032', buy:'\u8cb7\u9032', hold:'\u4e2d\u7acb',
+                    none:'\u2014', sell:'\u8ce3\u51fa', strong_sell:'\u5f37\u529b\u8ce3\u51fa'};
+    let recHtml = '<span style="color:var(--muted)">\u2014</span>';
+    let targetHtml = '<span style="color:var(--muted)">\u2014</span>';
+    let upsideHtml = '<span style="color:var(--muted)">\u2014</span>';
+    if (ad && !ad.error) {
+      const rec = ad.recKey || 'none';
+      if (rec !== 'none') {
+        recHtml = '<span class="tb-rec tb-rec-' + rec + '">' + (recMap[rec] || rec) + '</span>';
+      }
+      if (ad.targetMean != null) {
+        targetHtml = '<span class="price-cell" style="font-size:12px;font-family:\'SF Mono\',Consolas,monospace">NT$' + ad.targetMean.toFixed(1) + '</span>';
+        if (d && d.price) {
+          const pct = (ad.targetMean - d.price) / d.price * 100;
+          const cls = pct >= 0 ? 'upside-pos' : 'upside-neg';
+          upsideHtml = '<span class="' + cls + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%</span>';
+        }
+      }
+    }
+
     return '<tr' + rowCls + rowClick + '>' +
       '<td><div class="co-name">' + c.name + '</div>' +
            '<div class="co-en">' + c.en + '</div>' +
@@ -1053,6 +1090,9 @@ function render() {
       '<td><span class="badge badge-' + c.market + '">' + MNAMES[c.market] + '</span></td>' +
       '<td class="price-cell" id="' + id + '">' + chHtml + '</td>' +
       '<td class="price-cell">' + prHtml + '</td>' +
+      '<td style="text-align:center">' + recHtml + '</td>' +
+      '<td style="text-align:right">' + targetHtml + '</td>' +
+      '<td style="text-align:right">' + upsideHtml + '</td>' +
       '<td>' + c.industry + '</td>' +
       '<td>' + prod + '</td>' +
       '<td style="color:var(--muted);font-size:12px;white-space:nowrap">' + (c.booth || '\u2014') + '</td>' +
@@ -1064,7 +1104,11 @@ document.getElementById('tbl').addEventListener('click', e => {
   const th = e.target.closest('th[data-col]');
   if (!th) return;
   const col = th.dataset.col;
-  if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = col === 'change' || col === 'price' ? -1 : 1; }
+  if (sortCol === col) { sortDir *= -1; } else {
+    sortCol = col;
+    // Default descending for numeric value columns, ascending for text
+    sortDir = ['change','price','upside','target'].includes(col) ? -1 : 1;
+  }
   render();
 });
 
@@ -1147,31 +1191,36 @@ async function loadKLine(c) {
   if (klineChart) { klineChart.destroy(); klineChart = null; }
   tabLoaded['kline'] = true;
 
-  const now = new Date();
-  const months = [];
-  for (let i = 4; i >= 0; i--) {
-    months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
-  }
+  let allData = [];
 
-  const allData = (await Promise.all(months.map(async mDate => {
-    const y = mDate.getFullYear();
-    const m = String(mDate.getMonth() + 1).padStart(2, '0');
-    const rows = [];
-    try {
-      if (c.twx === 'otc') {
-        const url = 'https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php?l=zh-tw&d=' + y + '/' + m + '&s=' + code;
-        const r = await proxyFetch(url, 12000);
-        if (!r) return rows;
-        const j = await r.json();
-        for (const row of (j?.aaData || [])) {
-          const parts = (row[0] || '').split('/');
-          if (parts.length < 3) continue;
-          const date = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1])-1, parseInt(parts[2]));
-          const o = parseFloat((row[3]||'').replace(/,/g,'')), h = parseFloat((row[4]||'').replace(/,/g,''));
-          const l = parseFloat((row[5]||'').replace(/,/g,'')), cl = parseFloat((row[6]||'').replace(/,/g,''));
-          if ([o,h,l,cl].every(v=>!isNaN(v))) rows.push({x:date.getTime(), y:[o,h,l,cl]});
+  // Primary: Yahoo Finance v8 — works for both TSE (.TW) and OTC (.TWO)
+  try {
+    const yfUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + c.ticker + '?interval=1d&range=6mo';
+    const r = await proxyFetch(yfUrl, 14000);
+    if (r) {
+      const j = await r.json();
+      const result = j?.chart?.result?.[0];
+      if (result) {
+        const ts = result.timestamp || [];
+        const q  = result.indicators?.quote?.[0] || {};
+        for (let i = 0; i < ts.length; i++) {
+          const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], cl = q.close?.[i];
+          if ([o,h,l,cl].every(v => v != null && !isNaN(v)))
+            allData.push({x: ts[i] * 1000, y: [o, h, l, cl]});
         }
-      } else {
+      }
+    }
+  } catch(e) {}
+
+  // Fallback: TWSE STOCK_DAY (TSE only) if Yahoo Finance failed
+  if (allData.length === 0 && c.twx !== 'otc') {
+    const now = new Date();
+    const months = [];
+    for (let i = 4; i >= 0; i--) months.push(new Date(now.getFullYear(), now.getMonth()-i, 1));
+    const fbData = (await Promise.all(months.map(async mDate => {
+      const y = mDate.getFullYear(), m = String(mDate.getMonth()+1).padStart(2,'0');
+      const rows = [];
+      try {
         const url = 'https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=' + y + m + '01&stockNo=' + code;
         const r = await proxyFetch(url, 12000);
         if (!r) return rows;
@@ -1180,15 +1229,18 @@ async function loadKLine(c) {
         for (const row of (j.data || [])) {
           const parts = (row[0]||'').split('/');
           if (parts.length < 3) continue;
-          const date = new Date(parseInt(parts[0]) + 1911, parseInt(parts[1])-1, parseInt(parts[2]));
+          const date = new Date(parseInt(parts[0])+1911, parseInt(parts[1])-1, parseInt(parts[2]));
           const o = parseFloat((row[3]||'').replace(/,/g,'')), h = parseFloat((row[4]||'').replace(/,/g,''));
           const l = parseFloat((row[5]||'').replace(/,/g,'')), cl = parseFloat((row[6]||'').replace(/,/g,''));
           if ([o,h,l,cl].every(v=>!isNaN(v))) rows.push({x:date.getTime(), y:[o,h,l,cl]});
         }
-      }
-    } catch(e) {}
-    return rows;
-  }))).flat().sort((a,b) => a.x - b.x);
+      } catch(e) {}
+      return rows;
+    }))).flat();
+    allData = fbData;
+  }
+
+  allData.sort((a, b) => a.x - b.x);
 
   if (allData.length === 0) {
     container.innerHTML = '<div class="d-empty">\u26A0\uFE0F \u7121\u6cd5\u53d6\u5f97K\u7dda\u8cc7\u6599</div>';
